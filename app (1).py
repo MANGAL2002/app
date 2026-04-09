@@ -1,39 +1,28 @@
+
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import torch
+import torch.nn as nn
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 
-st.set_page_config(page_title="EEG Eye State App", layout="wide")
-
-st.title("🧠 EEG Eye State Classification Dashboard")
+st.set_page_config(layout="wide")
+st.title("🧠 EEG Deep Learning Dashboard")
 
 # ===============================
-# 📥 LOAD DATA FROM GITHUB
+# LOAD DATA
 # ===============================
-DATA_URL = "https://raw.githubusercontent.com/MANGAL2002/app/refs/heads/main/EEG_Eye_State_Classification.csv"
-
-@st.cache_data
-def load_data():
-    df = pd.read_csv(DATA_URL)
-    return df
-
-df = load_data()
+df = pd.read_csv("EEG_Eye_State_Classification.csv")
 
 st.subheader("📊 Dataset Preview")
 st.dataframe(df.head())
 
 # ===============================
-# 📐 DATA INFO
-# ===============================
-st.subheader("📐 Dataset Info")
-st.write("Shape:", df.shape)
-st.write(df.describe())
-
-# ===============================
-# 📊 VISUALIZATION
+# VISUALIZATION
 # ===============================
 st.subheader("📈 Data Visualization")
 
@@ -41,72 +30,109 @@ col1, col2 = st.columns(2)
 
 with col1:
     fig1, ax1 = plt.subplots()
-    df.iloc[:, 0].hist(ax=ax1)
-    ax1.set_title("Feature Distribution")
+    df.iloc[:, 0].plot(ax=ax1)
+    ax1.set_title("EEG Signal (Sample Feature)")
     st.pyplot(fig1)
 
 with col2:
     fig2, ax2 = plt.subplots()
     sns.countplot(x=df.iloc[:, -1], ax=ax2)
-    ax2.set_title("Target Distribution")
+    ax2.set_title("Class Distribution")
     st.pyplot(fig2)
 
 # ===============================
-# 🧠 MODEL TRAINING
+# SEQUENCE CREATION (DL IMPORTANT)
 # ===============================
-st.subheader("🤖 Model Training")
+def create_sequences(data, labels, seq_length=10):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i+seq_length])
+        y.append(labels[i+seq_length])
+    return np.array(X), np.array(y)
 
-X = df.iloc[:, :-1]
-y = df.iloc[:, -1]
+X = df.iloc[:, :-1].values
+y = df.iloc[:, -1].values
+
+X_seq, y_seq = create_sequences(X, y)
+
+st.write("Sequence Shape:", X_seq.shape)
 
 # Split
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X_seq, y_seq, test_size=0.2, random_state=42
 )
 
-if st.button("Train Model"):
+# Convert to tensor
+X_train = torch.tensor(X_train, dtype=torch.float32)
+X_test = torch.tensor(X_test, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.long)
+y_test = torch.tensor(y_test, dtype=torch.long)
 
-    model = RandomForestClassifier(n_estimators=100)
+# ===============================
+# CNN MODEL
+# ===============================
+class CNN_Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv1d(14, 32, 3)
+        self.pool = nn.MaxPool1d(2)
+        self.fc1 = nn.Linear(32 * 3, 64)
+        self.fc2 = nn.Linear(64, 2)
 
-    model.fit(X_train, y_train)
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        x = self.pool(torch.relu(self.conv1(x)))
+        x = x.view(x.size(0), -1)
+        x = torch.relu(self.fc1(x))
+        return self.fc2(x)
 
-    preds = model.predict(X_test)
+model = CNN_Model()
 
+# ===============================
+# TRAIN MODEL
+# ===============================
+if st.button("Train Deep Learning Model"):
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    loss_fn = nn.CrossEntropyLoss()
+
+    loss_list = []
+
+    for epoch in range(10):
+        outputs = model(X_train)
+        loss = loss_fn(outputs, y_train)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        loss_list.append(loss.item())
+        st.write(f"Epoch {epoch+1}: Loss {loss.item():.4f}")
+
+    preds = torch.argmax(model(X_test), axis=1)
     acc = accuracy_score(y_test, preds)
 
     st.success(f"✅ Accuracy: {acc:.2f}")
 
     # ===============================
-    # 📊 CONFUSION MATRIX
+    # PLOTS (IMPORTANT)
     # ===============================
-    st.subheader("Confusion Matrix")
 
+    # Loss curve
     fig3, ax3 = plt.subplots()
-    cm = confusion_matrix(y_test, preds)
-    sns.heatmap(cm, annot=True, fmt="d", ax=ax3)
-    ax3.set_title("Confusion Matrix")
+    ax3.plot(loss_list)
+    ax3.set_title("Training Loss Curve")
     st.pyplot(fig3)
 
-    # ===============================
-    # 📄 CLASSIFICATION REPORT
-    # ===============================
-    st.subheader("Classification Report")
-
-    report = classification_report(y_test, preds, output_dict=True)
-    st.dataframe(pd.DataFrame(report).transpose())
-
-    # ===============================
-    # 📊 FEATURE IMPORTANCE
-    # ===============================
-    st.subheader("Feature Importance")
-
-    importance = model.feature_importances_
-    feat_df = pd.DataFrame({
-        "Feature": X.columns,
-        "Importance": importance
-    }).sort_values(by="Importance", ascending=False)
-
+    # Confusion matrix
     fig4, ax4 = plt.subplots()
-    sns.barplot(x="Importance", y="Feature", data=feat_df, ax=ax4)
-    ax4.set_title("Feature Importance")
+    cm = confusion_matrix(y_test, preds)
+    sns.heatmap(cm, annot=True, ax=ax4)
+    ax4.set_title("Confusion Matrix")
     st.pyplot(fig4)
+
+    # Feature correlation heatmap
+    fig5, ax5 = plt.subplots(figsize=(10,6))
+    sns.heatmap(df.corr(), ax=ax5)
+    ax5.set_title("Feature Correlation Heatmap")
+    st.pyplot(fig5)
