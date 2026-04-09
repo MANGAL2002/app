@@ -5,102 +5,85 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc
-import seaborn as sns
-import pandas as pd
-import gdown
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import os
+import gdown
 
-st.set_page_config(page_title="EEG DL App", layout="wide")
-st.title("🧠 EEG Deep Learning Dashboard")
+st.title("🧠 EEG Sleep Stage Classification (Advanced)")
 
 # ===============================
-# 🔗 INPUT: GOOGLE DRIVE FILE ID
+# INPUT: TWO FILE IDS
 # ===============================
-file_id = st.text_input("Enter Google Drive File ID")
+psg_id = st.text_input("Enter PSG File ID")
+hypno_id = st.text_input("Enter Hypnogram File ID")
 
-if st.button("Load & Run"):
+if st.button("Run Full Model"):
 
-    if file_id == "":
-        st.error("Please enter File ID")
+    if psg_id == "" or hypno_id == "":
+        st.error("Enter both File IDs")
         st.stop()
 
     # ===============================
-    # 📥 DOWNLOAD FROM DRIVE (FIXED)
+    # DOWNLOAD FILES
     # ===============================
-    output = "data.edf"
-    url = f"https://drive.google.com/uc?id={file_id}"
+    psg_file = "psg.edf"
+    hypno_file = "hypno.edf"
 
     try:
-        if not os.path.exists(output):
-            with st.spinner("Downloading dataset from Google Drive..."):
-                gdown.download(url, output, quiet=False, fuzzy=True)
+        if not os.path.exists(psg_file):
+            gdown.download(f"https://drive.google.com/uc?id={psg_id}", psg_file, fuzzy=True)
 
-        st.success("✅ File downloaded successfully!")
+        if not os.path.exists(hypno_file):
+            gdown.download(f"https://drive.google.com/uc?id={hypno_id}", hypno_file, fuzzy=True)
 
-    except Exception as e:
-        st.error(f"❌ Download failed: {e}")
-        st.stop()
-
-    # ===============================
-    # 📊 LOAD EEG DATA
-    # ===============================
-    try:
-        raw = mne.io.read_raw_edf(output, preload=True)
-        raw.pick_types(eeg=True)
     except:
-        st.error("❌ Error reading EDF file. Check file.")
+        st.error("Download failed")
         st.stop()
 
-    st.subheader("📄 EEG Info")
-    st.write(raw.info)
+    st.success("Files Loaded")
 
     # ===============================
-    # ⚙️ PREPROCESSING
+    # LOAD DATA
+    # ===============================
+    raw = mne.io.read_raw_edf(psg_file, preload=True)
+    annot = mne.read_annotations(hypno_file)
+
+    raw.set_annotations(annot)
+    raw.pick_types(eeg=True)
+
+    # ===============================
+    # PREPROCESSING
     # ===============================
     raw.filter(0.5, 40)
-    raw.notch_filter(20)
     raw.resample(100)
 
     # ===============================
-    # ⏱️ CREATE EPOCHS
+    # CREATE EVENTS (LABELS)
     # ===============================
-    def create_epochs(raw, duration=2):
-        events = mne.make_fixed_length_events(raw, duration=duration)
-        epochs = mne.Epochs(raw, events, tmin=0, tmax=duration,
-                            baseline=None, preload=True)
-        return epochs
+    events, event_id = mne.events_from_annotations(raw)
 
-    epochs = create_epochs(raw)
+    epochs = mne.Epochs(raw, events, event_id, tmin=0, tmax=2,
+                        baseline=None, preload=True)
+
     data = epochs.get_data()
+    labels = epochs.events[:, -1]
 
     # Normalize
     data = (data - np.mean(data)) / np.std(data)
 
-    st.subheader("📐 Data Shape")
-    st.write(data.shape)
+    st.write("Data shape:", data.shape)
 
     # ===============================
-    # 📈 EEG PLOT
+    # MODEL (IMPROVED)
     # ===============================
-    fig1, ax1 = plt.subplots()
-    ax1.plot(data[0][0])
-    ax1.set_title("EEG Signal Sample")
-    st.pyplot(fig1)
-
-    # ===============================
-    # 🧠 MODEL
-    # ===============================
-    labels = np.random.randint(0, 2, len(data))
-
     class EEG_CNN(nn.Module):
         def __init__(self, channels):
             super().__init__()
-            self.conv1 = nn.Conv1d(channels, 16, 3)
+            self.conv1 = nn.Conv1d(channels, 32, 3)
+            self.conv2 = nn.Conv1d(32, 64, 3)
             self.pool = nn.MaxPool1d(2)
-            self.conv2 = nn.Conv1d(16, 32, 3)
-            self.fc1 = nn.Linear(32 * 24, 64)
-            self.fc2 = nn.Linear(64, 2)
+            self.fc1 = nn.Linear(64 * 24, 128)
+            self.fc2 = nn.Linear(128, len(np.unique(labels)))
 
         def forward(self, x):
             x = self.pool(torch.relu(self.conv1(x)))
@@ -109,95 +92,44 @@ if st.button("Load & Run"):
             x = torch.relu(self.fc1(x))
             return self.fc2(x)
 
-    if st.button("Train Model"):
+    X = torch.tensor(data, dtype=torch.float32)
+    y = torch.tensor(labels, dtype=torch.long)
 
-        channels = data.shape[1]
-        model = EEG_CNN(channels)
+    model = EEG_CNN(data.shape[1])
 
-        X = torch.tensor(data, dtype=torch.float32)
-        y = torch.tensor(labels, dtype=torch.long)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    loss_fn = nn.CrossEntropyLoss()
 
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+    loss_list = []
 
-        loss_list = []
-        accuracy_list = []
+    # ===============================
+    # TRAINING
+    # ===============================
+    for epoch in range(10):
+        outputs = model(X)
+        loss = loss_fn(outputs, y)
 
-        st.subheader("🏋️ Training Progress")
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-        for epoch in range(5):
-            outputs = model(X)
-            loss = criterion(outputs, y)
+        loss_list.append(loss.item())
+        st.write(f"Epoch {epoch+1} Loss: {loss.item():.4f}")
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+    preds = torch.argmax(outputs, axis=1).numpy()
 
-            preds = torch.argmax(outputs, axis=1)
-            acc = (preds == y).float().mean().item()
+    acc = (preds == labels).mean()
+    st.success(f"✅ Accuracy: {acc:.2f}")
 
-            loss_list.append(loss.item())
-            accuracy_list.append(acc)
+    # ===============================
+    # PLOTS
+    # ===============================
+    fig1, ax1 = plt.subplots()
+    ax1.plot(loss_list)
+    ax1.set_title("Training Loss")
+    st.pyplot(fig1)
 
-            st.write(f"Epoch {epoch+1} → Loss: {loss.item():.4f}, Accuracy: {acc:.4f}")
-
-        preds = preds.numpy()
-        y_true = y.numpy()
-
-        accuracy = (preds == y_true).mean()
-        st.success(f"✅ Final Accuracy: {accuracy:.2f}")
-
-        # ===============================
-        # 📊 VISUALS
-        # ===============================
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig2, ax2 = plt.subplots()
-            cm = confusion_matrix(y_true, preds)
-            ConfusionMatrixDisplay(cm).plot(ax=ax2)
-            ax2.set_title("Confusion Matrix")
-            st.pyplot(fig2)
-
-        with col2:
-            probs = torch.softmax(outputs, dim=1)[:,1].detach().numpy()
-            fpr, tpr, _ = roc_curve(y_true, probs)
-            roc_auc = auc(fpr, tpr)
-
-            fig3, ax3 = plt.subplots()
-            ax3.plot(fpr, tpr)
-            ax3.set_title(f"ROC Curve (AUC={roc_auc:.2f})")
-            st.pyplot(fig3)
-
-        # Loss graph
-        fig4, ax4 = plt.subplots()
-        ax4.plot(loss_list)
-        ax4.set_title("Training Loss")
-        st.pyplot(fig4)
-
-        # Accuracy graph
-        fig5, ax5 = plt.subplots()
-        ax5.plot(accuracy_list)
-        ax5.set_title("Accuracy")
-        st.pyplot(fig5)
-
-        # Multi-channel EEG
-        fig6, ax6 = plt.subplots()
-        for i in range(min(5, data.shape[1])):
-            ax6.plot(data[0][i] + i*5)
-        ax6.set_title("Multi-Channel EEG")
-        st.pyplot(fig6)
-
-        # Heatmap
-        sample_data = data[:200]
-        df = pd.DataFrame({
-            f"Ch_{i}": sample_data[:, i, :].mean(axis=1)
-            for i in range(sample_data.shape[1])
-        })
-        df["Label"] = labels[:200]
-
-        fig7, ax7 = plt.subplots()
-        sns.heatmap(df.corr(), ax=ax7)
-        ax7.set_title("Feature Correlation Heatmap")
-        st.pyplot(fig7)
+    fig2, ax2 = plt.subplots()
+    cm = confusion_matrix(labels, preds)
+    ConfusionMatrixDisplay(cm).plot(ax=ax2)
+    st.pyplot(fig2)
