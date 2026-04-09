@@ -1,47 +1,25 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, precision_recall_curve
 
 # ===============================
 # PAGE CONFIG
 # ===============================
-st.set_page_config(page_title="EEG Dashboard", layout="wide")
-
-# ===============================
-# CUSTOM CSS (🔥 UI BOOST)
-# ===============================
-st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-        color: white;
-    }
-    .card {
-        background: #1e293b;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
-    }
-    h1, h2, h3 {
-        color: #00e5ff;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.set_page_config(layout="wide")
+sns.set_style("whitegrid")
 
 st.title("🧠 EEG Deep Learning Pro Dashboard")
 
 # ===============================
 # SIDEBAR
 # ===============================
-st.sidebar.title("⚙️ Controls")
-
-theme = st.sidebar.selectbox("Theme", ["Dark", "Light"])
+st.sidebar.header("⚙️ Controls")
 seq_length = st.sidebar.slider("Sequence Length", 5, 20, 10)
 epochs = st.sidebar.slider("Epochs", 5, 30, 10)
 
@@ -59,56 +37,67 @@ tab1, tab2, tab3 = st.tabs(["📊 Data", "📈 Visualization", "🤖 Model"])
 # TAB 1: DATA
 # ===============================
 with tab1:
-
-    st.markdown("### 📊 Dataset Overview")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.markdown(f"<div class='card'>📦 Samples<br><h2>{len(df)}</h2></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='card'>📌 Features<br><h2>{df.shape[1]}</h2></div>", unsafe_allow_html=True)
-    col3.markdown(f"<div class='card'>🎯 Classes<br><h2>{df.iloc[:, -1].nunique()}</h2></div>", unsafe_allow_html=True)
-
+    st.subheader("Dataset Preview")
     st.dataframe(df.head(), use_container_width=True)
 
-    st.markdown("### 📊 Statistics")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Samples", len(df))
+    col2.metric("Features", df.shape[1])
+    col3.metric("Classes", df.iloc[:, -1].nunique())
+
+    st.subheader("Statistics Table")
     st.dataframe(df.describe(), use_container_width=True)
 
 # ===============================
-# TAB 2: VISUALIZATION (🔥 PLOTLY)
+# TAB 2: VISUALIZATION
 # ===============================
 with tab2:
 
-    st.subheader("📈 Advanced EEG Visualization")
+    st.subheader("📈 EEG Visual Analysis")
 
+    # ===============================
+    # ROW 1 (SIDE-BY-SIDE)
+    # ===============================
     col1, col2 = st.columns(2)
 
-    # EEG SIGNAL (Interactive)
+    # EEG SIGNAL
     with col1:
-        fig = px.line(df.iloc[:300, 0], title="EEG Signal")
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        fig1, ax1 = plt.subplots(figsize=(6,3))
+        ax1.plot(df.iloc[:300, 0], color="#1f77b4")
+        ax1.set_title("EEG Signal")
+        ax1.set_xlabel("Time")
+        ax1.set_ylabel("Amplitude")
+        plt.tight_layout()
+        st.pyplot(fig1, use_container_width=True)
 
     # CLASS DISTRIBUTION
     with col2:
-        fig = px.histogram(df, x=df.columns[-1], title="Class Distribution")
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        fig2, ax2 = plt.subplots(figsize=(6,3))
+        sns.countplot(x=df.iloc[:, -1], ax=ax2, palette="viridis")
+        ax2.set_title("Class Distribution")
+        ax2.set_xlabel("Class")
+        ax2.set_ylabel("Count")
+        plt.tight_layout()
+        st.pyplot(fig2, use_container_width=True)
 
+    # ===============================
+    # ROW 2 (SIDE-BY-SIDE)
+    # ===============================
     col3, col4 = st.columns(2)
 
-    # CORRELATION HEATMAP
+    # HEATMAP
     with col3:
-        corr = df.corr()
-        fig = px.imshow(corr, text_auto=True, title="Correlation Heatmap")
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        fig3, ax3 = plt.subplots(figsize=(6,3))
+        sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
+        ax3.set_title("Correlation Heatmap")
+        plt.tight_layout()
+        st.pyplot(fig3, use_container_width=True)
 
-    # SCATTER MATRIX
+    # PAIRPLOT (SMALL)
     with col4:
         sample_df = df.sample(200)
-        fig = px.scatter_matrix(sample_df, color=sample_df.columns[-1])
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1], corner=True)
+        st.pyplot(fig4)
 
 # ===============================
 # DATA PREP
@@ -179,37 +168,50 @@ with tab3:
         preds = torch.argmax(model(X_test), axis=1)
         acc = accuracy_score(y_test, preds)
 
-        st.success(f"🎯 Accuracy: {acc:.2f}")
+        st.success(f"Accuracy: {acc:.2f}")
 
-        col1, col2 = st.columns(2)
+        # ===============================
+        # RESULT GRAPHS SIDE-BY-SIDE
+        # ===============================
+        col5, col6 = st.columns(2)
 
-        # LOSS CURVE
-        with col1:
-            fig = px.line(loss_list, title="Loss Curve")
-            fig.update_layout(template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+        # LOSS
+        with col5:
+            fig5, ax5 = plt.subplots(figsize=(6,3))
+            ax5.plot(loss_list)
+            ax5.set_title("Loss Curve")
+            plt.tight_layout()
+            st.pyplot(fig5, use_container_width=True)
 
-        # ACCURACY
-        with col2:
-            fig = px.bar(x=["Accuracy"], y=[acc], title="Accuracy")
-            fig.update_layout(template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+        # ACCURACY BAR
+        with col6:
+            fig6, ax6 = plt.subplots(figsize=(6,3))
+            ax6.bar(["Accuracy"], [acc])
+            ax6.set_title("Accuracy")
+            plt.tight_layout()
+            st.pyplot(fig6, use_container_width=True)
 
-        col3, col4 = st.columns(2)
+        # ===============================
+        # NEXT ROW
+        # ===============================
+        col7, col8 = st.columns(2)
 
         # CONFUSION MATRIX
-        with col3:
+        with col7:
+            fig7, ax7 = plt.subplots(figsize=(6,3))
             cm = confusion_matrix(y_test, preds)
-            fig = px.imshow(cm, text_auto=True, title="Confusion Matrix")
-            fig.update_layout(template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+            sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
+            ax7.set_title("Confusion Matrix")
+            plt.tight_layout()
+            st.pyplot(fig7, use_container_width=True)
 
         # ROC CURVE
-        with col4:
+        with col8:
             probs = torch.softmax(model(X_test), dim=1)[:,1].detach().numpy()
             fpr, tpr, _ = roc_curve(y_test, probs)
 
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name='ROC'))
-            fig.update_layout(title="ROC Curve", template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+            fig8, ax8 = plt.subplots(figsize=(6,3))
+            ax8.plot(fpr, tpr)
+            ax8.set_title("ROC Curve")
+            plt.tight_layout()
+            st.pyplot(fig8, use_container_width=True)
