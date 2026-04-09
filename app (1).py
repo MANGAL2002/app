@@ -6,15 +6,21 @@ import seaborn as sns
 import torch
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc, precision_recall_curve
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, precision_recall_curve
 
+# ===============================
+# PAGE CONFIG + STYLE
+# ===============================
 st.set_page_config(layout="wide")
+
+sns.set_style("darkgrid")  # clean background
+
 st.title("🧠 EEG Deep Learning Pro Dashboard")
 
 # ===============================
-# SIDEBAR CONTROLS
+# SIDEBAR
 # ===============================
-st.sidebar.title("⚙️ Controls")
+st.sidebar.header("⚙️ Controls")
 seq_length = st.sidebar.slider("Sequence Length", 5, 20, 10)
 epochs = st.sidebar.slider("Epochs", 5, 30, 10)
 
@@ -29,11 +35,11 @@ df = pd.read_csv("EEG_Eye_State_Classification.csv")
 tab1, tab2, tab3 = st.tabs(["📊 Data", "📈 Visualization", "🤖 Model"])
 
 # ===============================
-# TAB 1: DATA + STATS
+# TAB 1: DATA
 # ===============================
 with tab1:
     st.subheader("Dataset Preview")
-    st.dataframe(df.head())
+    st.dataframe(df.head(), use_container_width=True)
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Samples", len(df))
@@ -41,31 +47,23 @@ with tab1:
     col3.metric("Classes", df.iloc[:, -1].nunique())
 
     st.subheader("Statistics Table")
-    stats_df = pd.DataFrame({
-        "Mean": df.mean(),
-        "Std": df.std(),
-        "Min": df.min(),
-        "Max": df.max()
-    })
-    st.dataframe(stats_df)
+    st.dataframe(df.describe(), use_container_width=True)
 
 # ===============================
 # TAB 2: VISUALIZATION
 # ===============================
 with tab2:
 
-    sns.set_style("darkgrid")
-
     col1, col2 = st.columns(2)
 
-    # EEG signal
+    # EEG Signal
     with col1:
         fig1, ax1 = plt.subplots(figsize=(4,2))
-        df.iloc[:500, 0].plot(ax=ax1)
+        ax1.plot(df.iloc[:300, 0])
         ax1.set_title("EEG Signal")
         st.pyplot(fig1)
 
-    # Class distribution
+    # Class Distribution
     with col2:
         fig2, ax2 = plt.subplots(figsize=(4,2))
         sns.countplot(x=df.iloc[:, -1], ax=ax2)
@@ -73,19 +71,19 @@ with tab2:
         st.pyplot(fig2)
 
     # Heatmap
-    fig3, ax3 = plt.subplots(figsize=(6,3))
+    fig3, ax3 = plt.subplots(figsize=(5,3))
     sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
     ax3.set_title("Correlation Heatmap")
     st.pyplot(fig3)
 
-    # Pairplot (sample)
-    st.subheader("Pairplot")
-    sample_df = df.sample(300)
-    fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1])
+    # Pairplot (optimized)
+    st.subheader("Pairplot (Sample)")
+    sample_df = df.sample(200)
+    fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1], corner=True)
     st.pyplot(fig4)
 
 # ===============================
-# PREPARE DATA
+# DATA PREP
 # ===============================
 def create_sequences(data, labels, seq_length):
     X, y = [], []
@@ -109,7 +107,7 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 y_test = torch.tensor(y_test, dtype=torch.long)
 
 # ===============================
-# CNN + LSTM MODEL
+# MODEL
 # ===============================
 class CNN_LSTM(nn.Module):
     def __init__(self, input_channels):
@@ -157,7 +155,7 @@ with tab3:
 
         col1, col2 = st.columns(2)
 
-        # Loss curve
+        # Loss
         with col1:
             fig5, ax5 = plt.subplots(figsize=(4,2))
             ax5.plot(loss_list)
@@ -174,6 +172,7 @@ with tab3:
         fig7, ax7 = plt.subplots(figsize=(4,3))
         cm = confusion_matrix(y_test, preds)
         sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
+        ax7.set_title("Confusion Matrix")
         st.pyplot(fig7)
 
         # ROC Curve
