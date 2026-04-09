@@ -1,9 +1,5 @@
 streamlit
-mne
-numpy
-torch
-matplotlib
-scikit-learn
-seaborn
 pandas
-gdown
+scikit-learn
+matplotlib
+seaborn
