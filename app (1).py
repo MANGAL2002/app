@@ -87,7 +87,7 @@ with tab2:
 
     # HEATMAP
     with col3:
-        fig3, ax3 = plt.subplots(figsize=(6,3))
+        fig3, ax3 = plt.subplots(figsize=(6,5))
         sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
         ax3.set_title("Correlation Heatmap")
         plt.tight_layout()
