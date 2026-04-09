@@ -24,8 +24,9 @@ st.set_page_config(page_title="EEG DL App", layout="wide")
 
 st.title("🧠 EEG Deep Learning Dashboard")
 
-# ===============================
 
+# ===============================
+import gdown
 file_id = st.text_input("Enter Google Drive File ID")
 
 if st.button("Load & Run"):
@@ -36,22 +37,19 @@ if st.button("Load & Run"):
 
         # ===============================
         # 📥 DOWNLOAD FROM DRIVE
-        # ==============================
-
+        # ===============================
         url = f"https://drive.google.com/uc?id={file_id}"
         output = "data.edf"
 
         try:
             if not os.path.exists(output):
-                 with st.spinner("Downloading dataset..."):
-                       gdown.download(url, output, quiet=False, fuzzy=True)
+              with st.spinner("Downloading dataset..."):
+                gdown.download(url, output, quiet=False, fuzzy=True)
 
-            st.success("Download complete!")
-
+            st.success("File Loaded Successfully!")
        except Exception as e:
-              st.error(f"Download failed: {e}")
-              st.stop()
-
+        st.error(f"Download failed: {e}")
+        st.stop()
         # ===============================
         # 📊 LOAD EEG
         # ===============================
@@ -154,4 +152,3 @@ if st.button("Load & Run"):
             ax3.plot(fpr, tpr)
             ax3.set_title(f"ROC Curve (AUC={roc_auc:.2f})")
             st.pyplot(fig3)
-
