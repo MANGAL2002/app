@@ -9,11 +9,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, precision_recall_curve
 
 # ===============================
-# PAGE CONFIG + STYLE
+# PAGE CONFIG
 # ===============================
 st.set_page_config(layout="wide")
-
-sns.set_style("darkgrid")  # clean background
+sns.set_style("whitegrid")
 
 st.title("🧠 EEG Deep Learning Pro Dashboard")
 
@@ -54,33 +53,51 @@ with tab1:
 # ===============================
 with tab2:
 
+    st.subheader("📈 EEG Visual Analysis")
+
+    # ===============================
+    # ROW 1 (SIDE-BY-SIDE)
+    # ===============================
     col1, col2 = st.columns(2)
 
-    # EEG Signal
+    # EEG SIGNAL
     with col1:
-        fig1, ax1 = plt.subplots(figsize=(4,2))
-        ax1.plot(df.iloc[:300, 0])
+        fig1, ax1 = plt.subplots(figsize=(6,3))
+        ax1.plot(df.iloc[:300, 0], color="#1f77b4")
         ax1.set_title("EEG Signal")
-        st.pyplot(fig1)
+        ax1.set_xlabel("Time")
+        ax1.set_ylabel("Amplitude")
+        plt.tight_layout()
+        st.pyplot(fig1, use_container_width=True)
 
-    # Class Distribution
+    # CLASS DISTRIBUTION
     with col2:
-        fig2, ax2 = plt.subplots(figsize=(4,2))
-        sns.countplot(x=df.iloc[:, -1], ax=ax2)
+        fig2, ax2 = plt.subplots(figsize=(6,3))
+        sns.countplot(x=df.iloc[:, -1], ax=ax2, palette="viridis")
         ax2.set_title("Class Distribution")
-        st.pyplot(fig2)
+        ax2.set_xlabel("Class")
+        ax2.set_ylabel("Count")
+        plt.tight_layout()
+        st.pyplot(fig2, use_container_width=True)
 
-    # Heatmap
-    fig3, ax3 = plt.subplots(figsize=(3,2))
-    sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
-    ax3.set_title("Correlation Heatmap")
-    st.pyplot(fig3)
+    # ===============================
+    # ROW 2 (SIDE-BY-SIDE)
+    # ===============================
+    col3, col4 = st.columns(2)
 
-    # Pairplot (optimized)
-    st.subheader("Pairplot (Sample)")
-    sample_df = df.sample(200)
-    fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1], corner=True)
-    st.pyplot(fig4)
+    # HEATMAP
+    with col3:
+        fig3, ax3 = plt.subplots(figsize=(6,3))
+        sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
+        ax3.set_title("Correlation Heatmap")
+        plt.tight_layout()
+        st.pyplot(fig3, use_container_width=True)
+
+    # PAIRPLOT (SMALL)
+    with col4:
+        sample_df = df.sample(200)
+        fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1], corner=True)
+        st.pyplot(fig4)
 
 # ===============================
 # DATA PREP
@@ -153,41 +170,48 @@ with tab3:
 
         st.success(f"Accuracy: {acc:.2f}")
 
-        col1, col2 = st.columns(2)
+        # ===============================
+        # RESULT GRAPHS SIDE-BY-SIDE
+        # ===============================
+        col5, col6 = st.columns(2)
 
-        # Loss
-        with col1:
-            fig5, ax5 = plt.subplots(figsize=(4,2))
+        # LOSS
+        with col5:
+            fig5, ax5 = plt.subplots(figsize=(6,3))
             ax5.plot(loss_list)
             ax5.set_title("Loss Curve")
-            st.pyplot(fig5)
+            plt.tight_layout()
+            st.pyplot(fig5, use_container_width=True)
 
-        # Accuracy bar
-        with col2:
-            fig6, ax6 = plt.subplots(figsize=(4,2))
+        # ACCURACY BAR
+        with col6:
+            fig6, ax6 = plt.subplots(figsize=(6,3))
             ax6.bar(["Accuracy"], [acc])
-            st.pyplot(fig6)
+            ax6.set_title("Accuracy")
+            plt.tight_layout()
+            st.pyplot(fig6, use_container_width=True)
 
-        # Confusion Matrix
-        fig7, ax7 = plt.subplots(figsize=(3,2))
-        cm = confusion_matrix(y_test, preds)
-        sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
-        ax7.set_title("Confusion Matrix")
-        st.pyplot(fig7)
+        # ===============================
+        # NEXT ROW
+        # ===============================
+        col7, col8 = st.columns(2)
 
-        # ROC Curve
-        probs = torch.softmax(model(X_test), dim=1)[:,1].detach().numpy()
-        fpr, tpr, _ = roc_curve(y_test, probs)
+        # CONFUSION MATRIX
+        with col7:
+            fig7, ax7 = plt.subplots(figsize=(6,3))
+            cm = confusion_matrix(y_test, preds)
+            sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
+            ax7.set_title("Confusion Matrix")
+            plt.tight_layout()
+            st.pyplot(fig7, use_container_width=True)
 
-        fig8, ax8 = plt.subplots(figsize=(3,2))
-        ax8.plot(fpr, tpr)
-        ax8.set_title("ROC Curve")
-        st.pyplot(fig8)
+        # ROC CURVE
+        with col8:
+            probs = torch.softmax(model(X_test), dim=1)[:,1].detach().numpy()
+            fpr, tpr, _ = roc_curve(y_test, probs)
 
-        # Precision-Recall
-        precision, recall, _ = precision_recall_curve(y_test, probs)
-
-        fig9, ax9 = plt.subplots(figsize=(4,2))
-        ax9.plot(recall, precision)
-        ax9.set_title("Precision-Recall Curve")
-        st.pyplot(fig9)
+            fig8, ax8 = plt.subplots(figsize=(6,3))
+            ax8.plot(fpr, tpr)
+            ax8.set_title("ROC Curve")
+            plt.tight_layout()
+            st.pyplot(fig8, use_container_width=True)
