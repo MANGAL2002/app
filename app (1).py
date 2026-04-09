@@ -169,7 +169,7 @@ with tab3:
             st.pyplot(fig6)
 
         # Confusion Matrix
-        fig7, ax7 = plt.subplots(figsize=(4,3))
+        fig7, ax7 = plt.subplots(figsize=(4,2))
         cm = confusion_matrix(y_test, preds)
         sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
         ax7.set_title("Confusion Matrix")
@@ -179,7 +179,7 @@ with tab3:
         probs = torch.softmax(model(X_test), dim=1)[:,1].detach().numpy()
         fpr, tpr, _ = roc_curve(y_test, probs)
 
-        fig8, ax8 = plt.subplots(figsize=(4,3))
+        fig8, ax8 = plt.subplots(figsize=(4,2))
         ax8.plot(fpr, tpr)
         ax8.set_title("ROC Curve")
         st.pyplot(fig8)
@@ -187,7 +187,7 @@ with tab3:
         # Precision-Recall
         precision, recall, _ = precision_recall_curve(y_test, probs)
 
-        fig9, ax9 = plt.subplots(figsize=(4,3))
+        fig9, ax9 = plt.subplots(figsize=(4,2))
         ax9.plot(recall, precision)
         ax9.set_title("Precision-Recall Curve")
         st.pyplot(fig9)
