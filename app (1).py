@@ -13,7 +13,7 @@ st.title("🧠 EEG Eye State Classification Dashboard")
 # ===============================
 # 📥 LOAD DATA FROM GITHUB
 # ===============================
-DATA_URL = "https://github.com/MANGAL2002/app/blob/main/EEG_Eye_State_Classification.csv"
+DATA_URL = "https://raw.githubusercontent.com/MANGAL2002/app/refs/heads/main/EEG_Eye_State_Classification.csv"
 
 @st.cache_data
 def load_data():
