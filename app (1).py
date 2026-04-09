@@ -19,12 +19,13 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_curve,
 import seaborn as sns
 import pandas as pd
 import os
-
+import gdown
 st.set_page_config(page_title="EEG DL App", layout="wide")
 
 st.title("🧠 EEG Deep Learning Dashboard")
 
 # ===============================
+
 file_id = st.text_input("Enter Google Drive File ID")
 
 if st.button("Load & Run"):
@@ -35,15 +36,21 @@ if st.button("Load & Run"):
 
         # ===============================
         # 📥 DOWNLOAD FROM DRIVE
-        # ===============================
+        # ==============================
+
         url = f"https://drive.google.com/uc?id={file_id}"
         output = "data.edf"
 
-        if not os.path.exists(output):
-            with st.spinner("Downloading dataset from Google Drive..."):
-                gdown.download(url, output, quiet=False)
+        try:
+            if not os.path.exists(output):
+                 with st.spinner("Downloading dataset..."):
+                       gdown.download(url, output, quiet=False, fuzzy=True)
 
-        st.success("File Loaded Successfully!")
+       st.success("Download complete!")
+
+except Exception as e:
+    st.error(f"Download failed: {e}")
+    st.stop()
 
         # ===============================
         # 📊 LOAD EEG
