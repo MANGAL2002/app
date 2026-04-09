@@ -162,14 +162,14 @@ with tab3:
             st.pyplot(fig6)
 
         # Confusion Matrix
-        fig7, ax7 = plt.subplots(figsize=(3,2))
+        fig7, ax7 = plt.subplots(figsize=(4,3))
         cm = confusion_matrix(y_test, preds)
         sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
         ax7.set_title("Confusion Matrix")
         st.pyplot(fig7)
 
         # Feature Importance (dummy for visualization)
-        fig8, ax8 = plt.subplots(figsize=(3,2))
+        fig8, ax8 = plt.subplots(figsize=(4,3))
         importances = np.random.rand(X.shape[1])
         sns.barplot(x=importances, y=df.columns[:-1], ax=ax8)
         ax8.set_title("Feature Importance")
