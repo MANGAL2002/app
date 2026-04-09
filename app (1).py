@@ -46,11 +46,11 @@ if st.button("Load & Run"):
                  with st.spinner("Downloading dataset..."):
                        gdown.download(url, output, quiet=False, fuzzy=True)
 
-       st.success("Download complete!")
+                st.success("Download complete!")
 
-except Exception as e:
-    st.error(f"Download failed: {e}")
-    st.stop()
+       except Exception as e:
+              st.error(f"Download failed: {e}")
+              st.stop()
 
         # ===============================
         # 📊 LOAD EEG
