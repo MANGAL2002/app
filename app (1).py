@@ -1,135 +1,112 @@
 import streamlit as st
-import mne
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-import os
+import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.model_selection import train_test_split
 
-st.set_page_config(layout="wide")
-st.title("🧠 Sleep EEG Classification App")
+st.set_page_config(page_title="EEG Eye State App", layout="wide")
 
-DATA_PATH = "data"
-
-# ===============================
-# LOAD FILES
-# ===============================
-psg_file = None
-hypno_file = None
-
-files = os.listdir(DATA_PATH)
-
-for f in files:
-    if "PSG.edf" in f:
-        psg_file = f
-    if "Hypnogram.edf" in f:
-        hypno_file = f
-
-if psg_file is None or hypno_file is None:
-    st.error("Dataset files not found!")
-    st.stop()
-
-st.success(f"Loaded: {psg_file}")
+st.title("🧠 EEG Eye State Classification Dashboard")
 
 # ===============================
-# LOAD DATA
+# 📥 LOAD DATA FROM GITHUB
 # ===============================
-raw = mne.io.read_raw_edf(os.path.join(DATA_PATH, psg_file), preload=True)
-annot = mne.read_annotations(os.path.join(DATA_PATH, hypno_file))
+DATA_URL = "PASTE_YOUR_GITHUB_RAW_LINK_HERE"
 
-raw.set_annotations(annot)
-raw.pick_types(eeg=True)
+@st.cache_data
+def load_data():
+    df = pd.read_csv(DATA_URL)
+    return df
 
-# ===============================
-# PREPROCESSING
-# ===============================
-raw.filter(0.5, 40)
-raw.resample(100)
+df = load_data()
 
-# ===============================
-# CREATE EPOCHS
-# ===============================
-events, event_id = mne.events_from_annotations(raw)
-
-epochs = mne.Epochs(raw, events, event_id,
-                    tmin=0, tmax=2,
-                    baseline=None, preload=True)
-
-data = epochs.get_data()
-labels = epochs.events[:, -1]
-
-# Normalize
-data = (data - np.mean(data)) / np.std(data)
-
-st.write("Dataset Shape:", data.shape)
+st.subheader("📊 Dataset Preview")
+st.dataframe(df.head())
 
 # ===============================
-# PLOT EEG
+# 📐 DATA INFO
 # ===============================
-fig1, ax1 = plt.subplots()
-ax1.plot(data[0][0])
-ax1.set_title("EEG Signal Sample")
-st.pyplot(fig1)
+st.subheader("📐 Dataset Info")
+st.write("Shape:", df.shape)
+st.write(df.describe())
 
 # ===============================
-# MODEL
+# 📊 VISUALIZATION
 # ===============================
-class EEG_CNN(nn.Module):
-    def __init__(self, channels, num_classes):
-        super().__init__()
-        self.conv1 = nn.Conv1d(channels, 32, 3)
-        self.conv2 = nn.Conv1d(32, 64, 3)
-        self.pool = nn.MaxPool1d(2)
-        self.fc1 = nn.Linear(64 * 24, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+st.subheader("📈 Data Visualization")
 
-    def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        x = self.pool(torch.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
-        return self.fc2(x)
+col1, col2 = st.columns(2)
+
+with col1:
+    fig1, ax1 = plt.subplots()
+    df.iloc[:, 0].hist(ax=ax1)
+    ax1.set_title("Feature Distribution")
+    st.pyplot(fig1)
+
+with col2:
+    fig2, ax2 = plt.subplots()
+    sns.countplot(x=df.iloc[:, -1], ax=ax2)
+    ax2.set_title("Target Distribution")
+    st.pyplot(fig2)
+
+# ===============================
+# 🧠 MODEL TRAINING
+# ===============================
+st.subheader("🤖 Model Training")
+
+X = df.iloc[:, :-1]
+y = df.iloc[:, -1]
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
 if st.button("Train Model"):
 
-    X = torch.tensor(data, dtype=torch.float32)
-    y = torch.tensor(labels, dtype=torch.long)
+    model = RandomForestClassifier(n_estimators=100)
 
-    num_classes = len(np.unique(labels))
-    model = EEG_CNN(data.shape[1], num_classes)
+    model.fit(X_train, y_train)
 
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    loss_fn = nn.CrossEntropyLoss()
+    preds = model.predict(X_test)
 
-    loss_list = []
-
-    for epoch in range(10):
-        outputs = model(X)
-        loss = loss_fn(outputs, y)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        loss_list.append(loss.item())
-        st.write(f"Epoch {epoch+1}: Loss {loss.item():.4f}")
-
-    preds = torch.argmax(outputs, axis=1).numpy()
-    acc = (preds == labels).mean()
+    acc = accuracy_score(y_test, preds)
 
     st.success(f"✅ Accuracy: {acc:.2f}")
 
     # ===============================
-    # PLOTS
+    # 📊 CONFUSION MATRIX
     # ===============================
-    fig2, ax2 = plt.subplots()
-    ax2.plot(loss_list)
-    ax2.set_title("Training Loss")
-    st.pyplot(fig2)
+    st.subheader("Confusion Matrix")
 
     fig3, ax3 = plt.subplots()
-    cm = confusion_matrix(labels, preds)
-    ConfusionMatrixDisplay(cm).plot(ax=ax3)
+    cm = confusion_matrix(y_test, preds)
+    sns.heatmap(cm, annot=True, fmt="d", ax=ax3)
+    ax3.set_title("Confusion Matrix")
     st.pyplot(fig3)
+
+    # ===============================
+    # 📄 CLASSIFICATION REPORT
+    # ===============================
+    st.subheader("Classification Report")
+
+    report = classification_report(y_test, preds, output_dict=True)
+    st.dataframe(pd.DataFrame(report).transpose())
+
+    # ===============================
+    # 📊 FEATURE IMPORTANCE
+    # ===============================
+    st.subheader("Feature Importance")
+
+    importance = model.feature_importances_
+    feat_df = pd.DataFrame({
+        "Feature": X.columns,
+        "Importance": importance
+    }).sort_values(by="Importance", ascending=False)
+
+    fig4, ax4 = plt.subplots()
+    sns.barplot(x="Importance", y="Feature", data=feat_df, ax=ax4)
+    ax4.set_title("Feature Importance")
+    st.pyplot(fig4)
