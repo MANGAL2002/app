@@ -7,9 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1GPR3fXOEcBUNKiTzIWXQnZQedXYGqjdU
 """
 
-!pip install streamlit
-
-!pip install mne
 
 import streamlit as st
 import mne
