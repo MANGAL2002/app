@@ -49,8 +49,8 @@ if st.button("Load & Run"):
             st.success("Download complete!")
 
        except Exception as e:
-         st.error(f"Download failed: {e}")
-         st.stop()
+          st.error(f"Download failed: {e}")
+          st.stop()
 
         # ===============================
         # 📊 LOAD EEG
