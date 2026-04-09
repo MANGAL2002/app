@@ -6,10 +6,17 @@ import seaborn as sns
 import torch
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc, precision_recall_curve
 
 st.set_page_config(layout="wide")
-st.title("🧠 EEG Deep Learning Smart Dashboard (Advanced)")
+st.title("🧠 EEG Deep Learning Pro Dashboard")
+
+# ===============================
+# SIDEBAR CONTROLS
+# ===============================
+st.sidebar.title("⚙️ Controls")
+seq_length = st.sidebar.slider("Sequence Length", 5, 20, 10)
+epochs = st.sidebar.slider("Epochs", 5, 30, 10)
 
 # ===============================
 # LOAD DATA
@@ -25,53 +32,62 @@ tab1, tab2, tab3 = st.tabs(["📊 Data", "📈 Visualization", "🤖 Model"])
 # TAB 1: DATA + STATS
 # ===============================
 with tab1:
-
     st.subheader("Dataset Preview")
     st.dataframe(df.head())
 
-    st.subheader("📐 Dataset Shape")
-    st.write(df.shape)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Samples", len(df))
+    col2.metric("Features", df.shape[1])
+    col3.metric("Classes", df.iloc[:, -1].nunique())
 
-    st.subheader("📊 Statistics Table")
-    st.dataframe(df.describe())
+    st.subheader("Statistics Table")
+    stats_df = pd.DataFrame({
+        "Mean": df.mean(),
+        "Std": df.std(),
+        "Min": df.min(),
+        "Max": df.max()
+    })
+    st.dataframe(stats_df)
 
 # ===============================
 # TAB 2: VISUALIZATION
 # ===============================
 with tab2:
 
+    sns.set_style("darkgrid")
+
     col1, col2 = st.columns(2)
 
-    # EEG Signal
+    # EEG signal
     with col1:
         fig1, ax1 = plt.subplots(figsize=(4,2))
         df.iloc[:500, 0].plot(ax=ax1)
         ax1.set_title("EEG Signal")
         st.pyplot(fig1)
 
-    # Class Distribution
+    # Class distribution
     with col2:
         fig2, ax2 = plt.subplots(figsize=(4,2))
         sns.countplot(x=df.iloc[:, -1], ax=ax2)
         ax2.set_title("Class Distribution")
         st.pyplot(fig2)
 
-    # Correlation Heatmap
-    st.subheader("Correlation Heatmap")
+    # Heatmap
     fig3, ax3 = plt.subplots(figsize=(6,3))
     sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
+    ax3.set_title("Correlation Heatmap")
     st.pyplot(fig3)
 
-    # Pairplot (limited rows for speed)
-    st.subheader("Pairplot (Sample Data)")
-    sample_df = df.sample(300)  # small sample for performance
+    # Pairplot (sample)
+    st.subheader("Pairplot")
+    sample_df = df.sample(300)
     fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1])
     st.pyplot(fig4)
 
 # ===============================
 # PREPARE DATA
 # ===============================
-def create_sequences(data, labels, seq_length=10):
+def create_sequences(data, labels, seq_length):
     X, y = [], []
     for i in range(len(data) - seq_length):
         X.append(data[i:i+seq_length])
@@ -81,7 +97,7 @@ def create_sequences(data, labels, seq_length=10):
 X = df.iloc[:, :-1].values
 y = df.iloc[:, -1].values
 
-X_seq, y_seq = create_sequences(X, y)
+X_seq, y_seq = create_sequences(X, y, seq_length)
 
 X_train, X_test, y_train, y_test = train_test_split(
     X_seq, y_seq, test_size=0.2, random_state=42
@@ -93,31 +109,24 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 y_test = torch.tensor(y_test, dtype=torch.long)
 
 # ===============================
-# CNN MODEL
+# CNN + LSTM MODEL
 # ===============================
-class CNN_Model(nn.Module):
+class CNN_LSTM(nn.Module):
     def __init__(self, input_channels):
         super().__init__()
         self.conv1 = nn.Conv1d(input_channels, 32, 3)
         self.pool = nn.MaxPool1d(2)
-        self._to_linear = None
-        self.fc1 = None
-        self.fc2 = None
+        self.lstm = nn.LSTM(32, 64, batch_first=True)
+        self.fc = nn.Linear(64, 2)
 
     def forward(self, x):
-        x = x.permute(0, 2, 1)
+        x = x.permute(0,2,1)
         x = self.pool(torch.relu(self.conv1(x)))
+        x = x.permute(0,2,1)
+        _, (h, _) = self.lstm(x)
+        return self.fc(h[-1])
 
-        if self._to_linear is None:
-            self._to_linear = x.shape[1] * x.shape[2]
-            self.fc1 = nn.Linear(self._to_linear, 64)
-            self.fc2 = nn.Linear(64, 2)
-
-        x = x.view(x.size(0), -1)
-        x = torch.relu(self.fc1(x))
-        return self.fc2(x)
-
-model = CNN_Model(input_channels=X_train.shape[2])
+model = CNN_LSTM(input_channels=X_train.shape[2])
 
 # ===============================
 # TAB 3: MODEL
@@ -131,7 +140,7 @@ with tab3:
 
         loss_list = []
 
-        for epoch in range(10):
+        for epoch in range(epochs):
             outputs = model(X_train)
             loss = loss_fn(outputs, y_train)
 
@@ -148,14 +157,14 @@ with tab3:
 
         col1, col2 = st.columns(2)
 
-        # Loss Curve
+        # Loss curve
         with col1:
             fig5, ax5 = plt.subplots(figsize=(4,2))
             ax5.plot(loss_list)
             ax5.set_title("Loss Curve")
             st.pyplot(fig5)
 
-        # Accuracy Bar
+        # Accuracy bar
         with col2:
             fig6, ax6 = plt.subplots(figsize=(4,2))
             ax6.bar(["Accuracy"], [acc])
@@ -165,12 +174,21 @@ with tab3:
         fig7, ax7 = plt.subplots(figsize=(4,3))
         cm = confusion_matrix(y_test, preds)
         sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
-        ax7.set_title("Confusion Matrix")
         st.pyplot(fig7)
 
-        # Feature Importance (dummy for visualization)
+        # ROC Curve
+        probs = torch.softmax(model(X_test), dim=1)[:,1].detach().numpy()
+        fpr, tpr, _ = roc_curve(y_test, probs)
+
         fig8, ax8 = plt.subplots(figsize=(4,3))
-        importances = np.random.rand(X.shape[1])
-        sns.barplot(x=importances, y=df.columns[:-1], ax=ax8)
-        ax8.set_title("Feature Importance")
+        ax8.plot(fpr, tpr)
+        ax8.set_title("ROC Curve")
         st.pyplot(fig8)
+
+        # Precision-Recall
+        precision, recall, _ = precision_recall_curve(y_test, probs)
+
+        fig9, ax9 = plt.subplots(figsize=(4,3))
+        ax9.plot(recall, precision)
+        ax9.set_title("Precision-Recall Curve")
+        st.pyplot(fig9)
