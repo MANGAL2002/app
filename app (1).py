@@ -71,7 +71,7 @@ with tab2:
         st.pyplot(fig2)
 
     # Heatmap
-    fig3, ax3 = plt.subplots(figsize=(5,3))
+    fig3, ax3 = plt.subplots(figsize=(4,2))
     sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
     ax3.set_title("Correlation Heatmap")
     st.pyplot(fig3)
