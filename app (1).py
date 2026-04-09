@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 st.set_page_config(layout="wide")
-st.title("🧠 EEG Deep Learning Smart Dashboard")
+st.title("🧠 EEG Deep Learning Smart Dashboard (Advanced)")
 
 # ===============================
 # LOAD DATA
@@ -17,18 +17,23 @@ st.title("🧠 EEG Deep Learning Smart Dashboard")
 df = pd.read_csv("EEG_Eye_State_Classification.csv")
 
 # ===============================
-# TABS UI
+# TABS
 # ===============================
 tab1, tab2, tab3 = st.tabs(["📊 Data", "📈 Visualization", "🤖 Model"])
 
 # ===============================
-# TAB 1: DATA
+# TAB 1: DATA + STATS
 # ===============================
 with tab1:
+
     st.subheader("Dataset Preview")
     st.dataframe(df.head())
 
-    st.write("Shape:", df.shape)
+    st.subheader("📐 Dataset Shape")
+    st.write(df.shape)
+
+    st.subheader("📊 Statistics Table")
+    st.dataframe(df.describe())
 
 # ===============================
 # TAB 2: VISUALIZATION
@@ -37,14 +42,14 @@ with tab2:
 
     col1, col2 = st.columns(2)
 
-    # EEG signal
+    # EEG Signal
     with col1:
         fig1, ax1 = plt.subplots(figsize=(4,2))
         df.iloc[:500, 0].plot(ax=ax1)
         ax1.set_title("EEG Signal")
         st.pyplot(fig1)
 
-    # Class distribution
+    # Class Distribution
     with col2:
         fig2, ax2 = plt.subplots(figsize=(4,2))
         sns.countplot(x=df.iloc[:, -1], ax=ax2)
@@ -52,10 +57,16 @@ with tab2:
         st.pyplot(fig2)
 
     # Correlation Heatmap
+    st.subheader("Correlation Heatmap")
     fig3, ax3 = plt.subplots(figsize=(6,3))
-    sns.heatmap(df.corr(), ax=ax3, cmap="coolwarm")
-    ax3.set_title("Correlation Heatmap")
+    sns.heatmap(df.corr(), cmap="coolwarm", ax=ax3)
     st.pyplot(fig3)
+
+    # Pairplot (limited rows for speed)
+    st.subheader("Pairplot (Sample Data)")
+    sample_df = df.sample(300)  # small sample for performance
+    fig4 = sns.pairplot(sample_df, hue=sample_df.columns[-1])
+    st.pyplot(fig4)
 
 # ===============================
 # PREPARE DATA
@@ -82,7 +93,7 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 y_test = torch.tensor(y_test, dtype=torch.long)
 
 # ===============================
-# CNN MODEL (FIXED)
+# CNN MODEL
 # ===============================
 class CNN_Model(nn.Module):
     def __init__(self, input_channels):
@@ -137,29 +148,29 @@ with tab3:
 
         col1, col2 = st.columns(2)
 
-        # Loss curve
+        # Loss Curve
         with col1:
-            fig4, ax4 = plt.subplots(figsize=(4,2))
-            ax4.plot(loss_list)
-            ax4.set_title("Loss Curve")
-            st.pyplot(fig4)
-
-        # Accuracy bar
-        with col2:
             fig5, ax5 = plt.subplots(figsize=(4,2))
-            ax5.bar(["Accuracy"], [acc])
+            ax5.plot(loss_list)
+            ax5.set_title("Loss Curve")
             st.pyplot(fig5)
 
-        # Confusion matrix
-        fig6, ax6 = plt.subplots(figsize=(4,3))
-        cm = confusion_matrix(y_test, preds)
-        sns.heatmap(cm, annot=True, fmt="d", ax=ax6)
-        ax6.set_title("Confusion Matrix")
-        st.pyplot(fig6)
+        # Accuracy Bar
+        with col2:
+            fig6, ax6 = plt.subplots(figsize=(4,2))
+            ax6.bar(["Accuracy"], [acc])
+            st.pyplot(fig6)
 
-        # Feature importance (Random)
+        # Confusion Matrix
         fig7, ax7 = plt.subplots(figsize=(4,3))
-        importances = np.random.rand(X.shape[1])
-        sns.barplot(x=importances, y=df.columns[:-1], ax=ax7)
-        ax7.set_title("Feature Importance")
+        cm = confusion_matrix(y_test, preds)
+        sns.heatmap(cm, annot=True, fmt="d", ax=ax7)
+        ax7.set_title("Confusion Matrix")
         st.pyplot(fig7)
+
+        # Feature Importance (dummy for visualization)
+        fig8, ax8 = plt.subplots(figsize=(4,3))
+        importances = np.random.rand(X.shape[1])
+        sns.barplot(x=importances, y=df.columns[:-1], ax=ax8)
+        ax8.set_title("Feature Importance")
+        st.pyplot(fig8)
